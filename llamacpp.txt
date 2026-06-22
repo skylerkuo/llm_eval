@@ -1,0 +1,14 @@
+# 安裝編譯器套件
+conda install -c conda-forge gxx_linux-64 gcc_linux-64 make cmake
+
+# 再次嘗試安裝，並指定 CUDA 開啟
+export CMAKE_ARGS="-DGGML_CUDA=on"
+pip install llama-cpp-python --no-cache-dir
+
+
+pip install --no-cache-dir --force-reinstall llama-cpp-python \
+  --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+
+wget https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf
+
+
