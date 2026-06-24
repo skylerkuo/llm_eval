@@ -1,6 +1,6 @@
 ---
 name: pick-and-place
-description: 做拿取、放下、移動物品或整理桌面物件的 Isaac Sim 取放任務分解。
+description: 做拿取或是放下移動物品或是整理水果或物件的任務分解。
 ---
 
 # 任務說明

@@ -31,7 +31,10 @@ description: 束線帶使用與知識。
 ## clarify
 
 以下情況分類為 `clarify`：
-
+---
+name: assemble-object-gear
+description: 使用者希望機器人完成齒輪安裝任務
+---
 1. 問題不完整或指稱不清楚。  
    例如：這個要怎麼用？它可以固定嗎？
 
