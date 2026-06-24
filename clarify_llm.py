@@ -33,12 +33,12 @@ select_prompt = ChatPromptTemplate.from_messages([
 
 answer_prompt = ChatPromptTemplate.from_messages([
     ("system", """你是一個工業場域機器人。
-參照知識文件和對話紀錄和現在使用者的指令適時調整回答回覆使用者。
-使用者用甚麼語言(英文或中文)，answer就要用相同語言回答。
+參照知識文件和對話紀錄和現在使用者的指令去釐清使用者的指令因為使用者現在指令不清楚或有問題，可以跟使用者要求更多資訊。
+使用者用甚麼語言(英文或中文)，clarify就要用相同語言回答。
 
 輸出 JSON：
 {{
-  "answer": "回答"
+  "clarify": "回答使用者的問題，或是要求使用者提供更多資訊或釐清指令,must give a clarify",
 }}"""),
     ("human", """知識文件：
 

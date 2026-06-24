@@ -1,3 +1,6 @@
+import asyncio
+import json
+
 import gradio as gr
 from langchain_core.messages import HumanMessage, AIMessage
 from llm_utils import get_session_history, MAX_HISTORY
@@ -8,22 +11,33 @@ from front_llm_v2 import front_llm_infer
 from modify_llm import modify_llm_infer
 # from vision_qa_llm import vision_qa_llm_infer
 from pc_client import client
-import asyncio
 from faster_whisper import WhisperModel
 from action_llm import robot_action_llm_infer
 
+
+# ===== JSONL 評測設定 =====
+RUN_EVAL = True
+
+EVAL_INPUT_PATH = "llm_eval.jsonl"
+EVAL_OUTPUT_PATH = "eval_result_E12B.jsonl"
+
+
 whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
+
 
 def transcribe_audio(audio_path: str) -> str:
     if audio_path is None:
         return ""
-    segments, _ = whisper_model.transcribe(audio_path, language="zh",initial_prompt="以下是繁體中文的轉錄內容。")
+
+    segments, _ = whisper_model.transcribe(
+        audio_path,
+        language="zh",
+        initial_prompt="以下是繁體中文的轉錄內容。",
+    )
     return "".join([seg.text for seg in segments])
 
-async def predict(user_input, history):
-    if not user_input or not user_input.strip():
-        return history, "waiting..."
 
+async def run_once(user_input: str, send_robot: bool = True):
     result = front_llm_infer(user_input)
     llm_type = result.get("type")
 
@@ -31,12 +45,11 @@ async def predict(user_input, history):
     extra_info = ""
 
     if llm_type == "clarify":
-
         selected_name = result.get("selected_name")
 
         response = clarify_llm_infer(
             user_input,
-            selected_name=selected_name
+            selected_name=selected_name,
         )
         response_text = f"clarify：{response.get('clarify', '')}"
 
@@ -45,7 +58,7 @@ async def predict(user_input, history):
 
         response = robot_action_llm_infer(
             user_input,
-            selected_name=selected_name
+            selected_name=selected_name,
         )
 
         response_text = response.get("answer", "")
@@ -82,7 +95,7 @@ async def predict(user_input, history):
 
         response = answer_llm_infer(
             user_input,
-            selected_name=selected_name
+            selected_name=selected_name,
         )
         response_text = response.get("answer", "")
 
@@ -93,21 +106,24 @@ async def predict(user_input, history):
 
         response_text = response.get("answer", "（無回答）")
         action_steps = response.get("steps", [])
+
         print(response_text)
         print(action_steps)
-        try:
-            await client(msg=action_steps, img=False)
-        except Exception as e:
-            print(f"[WebSocket Error] {e}")
+
+        if send_robot:
+            try:
+                await client(msg=action_steps, img=False)
+            except Exception as e:
+                print(f"[WebSocket Error] {e}")
 
         if action_steps:
             extra_info = "### Task Planning：\n\n"
             for step in action_steps:
                 if isinstance(step, dict):
                     step_id = step.get("id", "")
-                    action  = step.get("action", "no action")
-                    obj     = step.get("object", "no object")
-                    pos     = step.get("position", "no position")
+                    action = step.get("action", "no action")
+                    obj = step.get("object", "no object")
+                    pos = step.get("position", "no position")
 
                     extra_info += (
                         f"\n\n### Step {step_id}\n"
@@ -120,8 +136,10 @@ async def predict(user_input, history):
 
     elif llm_type == "modify":
         response = modify_llm_infer(user_input)
+
         response_text = response.get("answer", "")
         add_content = response.get("add", "")
+
         if add_content:
             extra_info = f"### new rules：\n{add_content}"
 
@@ -129,20 +147,83 @@ async def predict(user_input, history):
         # await client(msg="", img=True)
         # response = vision_qa_llm_infer(user_input)
         # response_text = response.get("answer", "")
+
         response_text = "桌上有白色的板子和橙色的部件。"
         print("vision")
 
     else:
         response_text = "no class"
 
+    return response_text, extra_info, llm_type, result
+
+
+async def predict(user_input, history):
+    if not user_input or not user_input.strip():
+        return history, "waiting..."
+
+    response_text, extra_info, _, _ = await run_once(
+        user_input,
+        send_robot=True,
+    )
+
     langchain_history = get_session_history("default")
     langchain_history.add_message(HumanMessage(content=user_input))
     langchain_history.add_message(AIMessage(content=response_text))
 
-    history.append({"role": "user",      "content": user_input})
+    history.append({"role": "user", "content": user_input})
     history.append({"role": "assistant", "content": response_text})
 
     return history, extra_info
+
+
+async def run_jsonl_eval(input_path: str, output_path: str):
+    with open(input_path, "r", encoding="utf-8") as fin, open(
+        output_path,
+        "w",
+        encoding="utf-8",
+    ) as fout:
+        for line_id, line in enumerate(fin, start=1):
+            line = line.strip()
+            if not line:
+                continue
+
+            data = json.loads(line)
+
+            question = data.get("question", "")
+            correct_answer = data.get("answer", "")
+
+            print(f"[{line_id}] Question: {question}")
+
+            try:
+                model_answer, extra_info, llm_type, front_result = await run_once(
+                    question,
+                    send_robot=False,
+                )
+
+                record = {
+                    "question": question,
+                    "correct_answer": correct_answer,
+                    "model_answer": model_answer,
+                    "type": llm_type,
+                    "selected_name": front_result.get("selected_name"),
+                    "extra_info": extra_info,
+                }
+
+            except Exception as e:
+                record = {
+                    "question": question,
+                    "correct_answer": correct_answer,
+                    "model_answer": "",
+                    "type": "error",
+                    "selected_name": None,
+                    "extra_info": "",
+                    "error": str(e),
+                }
+
+            fout.write(json.dumps(record, ensure_ascii=False) + "\n")
+            fout.flush()
+
+    print(f"Done. Saved to {output_path}")
 
 
 with gr.Blocks(title="子計畫三：語音引導學習") as demo:
@@ -157,7 +238,6 @@ with gr.Blocks(title="子計畫三：語音引導學習") as demo:
                 show_label=False,
             )
 
-            # 🎙️ 按一次開始錄音，再按一次停止 → 自動轉文字填入 msg
             audio_input = gr.Audio(
                 sources=["microphone"],
                 type="filepath",
@@ -166,13 +246,12 @@ with gr.Blocks(title="子計畫三：語音引導學習") as demo:
 
             with gr.Row():
                 submit = gr.Button("send", variant="primary")
-                clear  = gr.Button("clear")
+                clear = gr.Button("clear")
 
         with gr.Column(scale=2):
             gr.Markdown("### task planning (Steps / Details)")
             info_panel = gr.Markdown("waiting...", elem_id="info_panel")
 
-    # 停止錄音時自動觸發轉文字，結果填入 msg
     audio_input.stop_recording(
         fn=transcribe_audio,
         inputs=[audio_input],
@@ -198,5 +277,18 @@ with gr.Blocks(title="子計畫三：語音引導學習") as demo:
         queue=False,
     )
 
+
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7210, share=True)
+    if RUN_EVAL:
+        asyncio.run(
+            run_jsonl_eval(
+                EVAL_INPUT_PATH,
+                EVAL_OUTPUT_PATH,
+            )
+        )
+    else:
+        demo.launch(
+            server_name="0.0.0.0",
+            server_port=7210,
+            share=True,
+        )

@@ -6,7 +6,7 @@ from langchain_community.chat_models import ChatLlamaCpp
 # set_llm_cache(InMemoryCache())
 
 pwd = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(pwd, "gemma-4-E4B-it-Q4_K_M.gguf")
+model_path = os.path.join(pwd, "gemma-4-12b-it-Q4_K_M.gguf")
 
 if not os.path.exists(model_path):
     print(f"no model：{model_path}")
