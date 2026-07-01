@@ -62,6 +62,28 @@ https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF
 
 也可以下載其他大小的，下載完後放到這個檔案夾裡面就好，並且記得改 `model_load_4b_4bit.py` 裡面的 model path，讓系統能夠讀到。
 
+## 安裝 llama-cpp-python
+
+`llama-cpp-python` 請安裝 CUDA 版本，可參考官方說明：
+
+https://pypi.org/project/llama-cpp-python/
+
+安裝格式如下：
+
+```bash
+pip install llama-cpp-python \
+  --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/<cuda-version>
+```
+
+例如 CUDA 12.5：
+
+```bash
+pip install llama-cpp-python \
+  --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu125
+```
+
+若 `nvidia-smi` 顯示 CUDA 13.0，也建議可先使用 `cu125`，相容性通常較穩。
+
 ## 安裝環境
 
 建議使用 Python 3.10 以上。
@@ -72,13 +94,7 @@ https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF
 python gai_demo_main_voice.py
 ```
 
-缺什麼裝什麼都不會有問題，會有問題的只有 `llama-cpp-python`。
-
-要看你自己的規格去安裝，參考：
-
-https://pypi.org/project/llama-cpp-python/
-
-記得要安裝有 CUDA 的版本。
+缺什麼補什麼
 
 ## 執行
 
